@@ -77,8 +77,6 @@ $$\text{Lit Segment Count}(pv\_digits) \neq \text{Extracted Digit Length}(pv\_ra
 ```text
 smart-factory-inspection-vision/
 ├── README.md
-├── docs/
-│   └── architecture.png
 └── workflows/
     ├── machine-inspection-pipeline.json
     └── monthly-template-provisioner.json
@@ -104,7 +102,7 @@ smart-factory-inspection-vision/
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/<your-username>/smart-factory-inspection-vision.git
+   git clone https://github.com/Panutle/smart-factory-inspection-vision.git
    cd smart-factory-inspection-vision
    ```
 2. In the n8n web console:
