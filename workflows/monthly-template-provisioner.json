@@ -1,0 +1,161 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1904,
+        -816
+      ],
+      "id": "256e9118-9cf4-4d10-a3b6-fa4d2bec8f42",
+      "name": "ต้นเดือน 00:30"
+    },
+    {
+      "parameters": {
+        "jsCode": "// คำนวณเดือนปัจจุบัน (Asia/Bangkok) + ชื่อไฟล์ + วันสุดท้ายของเดือน\n// n8n default TZ = America/New_York -> ต้องบวก 7 ชม.เอง ไม่ใช้ $now\nconst bkk = new Date(Date.now() + 7*3600*1000);\nconst y = bkk.getUTCFullYear();\nconst m = bkk.getUTCMonth() + 1;              // 1-12\nconst mm = String(m).padStart(2,'0');\n\n// วันสุดท้ายของเดือน: วันที่ 0 ของเดือนถัดไป = วันสุดท้ายเดือนนี้\nconst lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();   // m เป็น index เดือนถัดไปพอดี (getUTCMonth+1)\nconst lastDateStr = y + '-' + mm + '-' + String(lastDay).padStart(2,'0');  // YYYY-MM-DD ให้ USER_ENTERED ตีความเป็น date\n\nconst fileName = 'FM-DEM-032-038-61 | ใบตรวจเช็คเครื่องจักรประจําวัน | ' + mm + '-' + y;\nconst titleSuffix = mm + '-' + y;             // ใช้ค้นไฟล์ทีหลัง\n\nreturn [{ json: {\n  year: y, month: m, mm: mm,\n  lastDay: lastDay, lastDate: lastDateStr,\n  fileName: fileName, titleSuffix: titleSuffix,\n  templateId: '1MdJXbrVhCC_oPO7TWH9HblgLAnJ6cWwJ1n7EhcqvfV4', destFolder: '1NQX4VupMsDTZredzc4YznbDIqsDcEpah'\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1696,
+        -816
+      ],
+      "id": "0f98fdab-4fc4-42bf-9e0c-fe8fc6dd4cdb",
+      "name": "คำนวณเดือน+ชื่อไฟล์+วันสุดท้าย"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.templateId }}/copy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.fileName, parents: [$json.destFolder] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1504,
+        -816
+      ],
+      "id": "79ffb42c-54bf-4684-9321-360f59fcc831",
+      "name": "Copy template (Drive API)",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "fpUS3t6zl8CnO2td",
+          "name": "dts-gg-drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// สร้าง payload batchUpdate: E3 + O4 = วันสุดท้ายของเดือน ทุกแท็บ\nconst info = $('คำนวณเดือน+ชื่อไฟล์+วันสุดท้าย').first().json;\nconst fileId = $json.id;                       // จาก Copy node\nconst lastDate = info.lastDate;                // YYYY-MM-DD\n\nconst TABS = [\n  'FM-DEM-035_BSD72-1','FM-DEM-035_BSD72-2','FM-DEM-036_SP100-1','FM-DEM-036_SP100-2',\n  'FM-DEM-037_BOOSTER NO.1','FM-DEM-037_BOOSTER NO.2','FM-DEM-037_BOOSTER NO.3',\n  'FM-DEM-038_COOLING 1','FM-DEM-038_COOLING 2','FM-DEM-038_COOLING 3','FM-DEM-038_COOLING 5',\n  'FM-DEM-032_ASB250-3','FM-DEM-033_PF8-3','FM-DEM-033_PF8-5','FM-DEM-033_PF8-6',\n  'FM-DEM-033_PF8-7','FM-DEM-033_PF8-8','FM-DEM-061_TE'\n];\n\nconst data = [];\nfor (const tab of TABS) {\n  data.push({ range: \"'\"+tab+\"'!E3\", values: [[lastDate]] });\n  data.push({ range: \"'\"+tab+\"'!O4\", values: [[lastDate]] });\n}\n\nreturn [{ json: {\n  fileId: fileId,\n  fileName: info.fileName,\n  body: { valueInputOption: 'USER_ENTERED', data: data }\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        -816
+      ],
+      "id": "c703a4df-fc1e-419d-a37b-427a5a055a60",
+      "name": "สร้าง payload E3+O4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.fileId }}/values:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1104,
+        -816
+      ],
+      "id": "2ed1497d-f3ab-43a4-ad42-1692e84a6b1c",
+      "name": "เขียน E3+O4 (batchUpdate)",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "fpUS3t6zl8CnO2td",
+          "name": "dts-gg-drive"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "ต้นเดือน 00:30": {
+      "main": [
+        [
+          {
+            "node": "คำนวณเดือน+ชื่อไฟล์+วันสุดท้าย",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "คำนวณเดือน+ชื่อไฟล์+วันสุดท้าย": {
+      "main": [
+        [
+          {
+            "node": "Copy template (Drive API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy template (Drive API)": {
+      "main": [
+        [
+          {
+            "node": "สร้าง payload E3+O4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "สร้าง payload E3+O4": {
+      "main": [
+        [
+          {
+            "node": "เขียน E3+O4 (batchUpdate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "8b89bacf03b33df343a7dd9f17cf1721598896265238cfb8ad22fd7cae20c33a"
+  }
+}
